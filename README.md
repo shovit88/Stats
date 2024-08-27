@@ -1,4 +1,6 @@
 streamlit run auto2.py
+
+
 Box Plot
 
 
