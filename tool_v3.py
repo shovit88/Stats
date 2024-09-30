@@ -295,47 +295,63 @@ def perform_normality_test(df, variable):
 
 def perform_linear_regression(df, x_var, y_var):
     st.subheader(f"Linear Regression: {y_var} vs {x_var}")
-    df = df.dropna()
-    X = df[[x_var]]
-    y = df[y_var]
     
-    model = LinearRegression()
-    model.fit(X, y)
+    # Function to calculate regression and display results
+    def calculate_and_display_regression(data):
+        data = data.dropna()
+        X = data[[x_var]]
+        y = data[y_var]
+        
+        model = LinearRegression()
+        model.fit(X, y)
 
-    y_pred = model.predict(X)
-    mse = mean_squared_error(y, y_pred)
-    r2 = r2_score(y, y_pred)
-    
-    st.write(f"Coefficient: {model.coef_[0]:.4f}")
-    st.write(f"Intercept: {model.intercept_:.4f}")
-    st.write(f"R-squared: {r2:.4f}")
-    st.write(f"Mean Squared Error: {mse:.4f}")
-    
-    # Scatter plot with regression line
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.regplot(x=x_var, y=y_var, data=df, ax=ax)
-    ax.set_title(f"Linear Regression: {y_var} vs {x_var}")
-    st.pyplot(fig)
+        y_pred = model.predict(X)
+        mse = mean_squared_error(y, y_pred)
+        r2 = r2_score(y, y_pred)
+        
+        # Display results
+        st.write(f"Coefficient: {model.coef_[0]:.4f}")
+        st.write(f"Intercept: {model.intercept_:.4f}")
+        st.write(f"R-squared: {r2:.4f}")
+        st.write(f"Mean Squared Error: {mse:.4f}")
+        
+        # Scatter plot with regression line
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.regplot(x=x_var, y=y_var, data=data, ax=ax)
+        ax.set_title(f"Linear Regression: {y_var} vs {x_var}")
+        st.pyplot(fig)
 
-    # Add error and MSE columns
-    df['Predicted'] = y_pred
-    df['Error'] = y - y_pred
-    df['Error_Sq'] = (df['Error'] ** 2)
+        # Calculate error and error squared
+        data['Predicted'] = y_pred
+        data['Error'] = y - y_pred
+        data['Error_Sq'] = data['Error'] ** 2
+        
+        # Sort by Error in descending order
+        data = data.sort_values('Error', ascending=False)
+        
+        return data, model
 
-    # Print the dataframe with the new columns
-    st.write(df)
-    
+    # Initial calculation
+    df, model = calculate_and_display_regression(df)
+
+    # Make the dataframe editable
+    edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic")
+
+    # Re-run linear regression if dataframe is edited
+    if not edited_df.equals(df):
+        calculate_and_display_regression(edited_df)
+
     # Residual plot
-    residuals = y - model.predict(X)
+    residuals = edited_df[y_var] - model.predict(edited_df[[x_var]])
     fig, ax = plt.subplots(figsize=(10, 6))
-    sns.scatterplot(x=model.predict(X), y=residuals, ax=ax)
+    sns.scatterplot(x=model.predict(edited_df[[x_var]]), y=residuals, ax=ax)
     ax.axhline(y=0, color='r', linestyle='--')
     ax.set_xlabel("Predicted values")
     ax.set_ylabel("Residuals")
     ax.set_title("Residual Plot")
     st.pyplot(fig)
 
-    return df
+    return edited_df
 
 def perform_multiple_linear_regression(df, y_var, x_vars):
     st.subheader(f"Multiple Linear Regression: {y_var} vs {', '.join(x_vars)}")
@@ -358,10 +374,13 @@ def perform_multiple_linear_regression(df, y_var, x_vars):
         data['Absolute_Error'] = abs(y - data['Predicted'])
         data['Error_sq'] = round((data['Absolute_Error'] ** 2), 8)
         
-        return model, vif_data, data
+        # Calculate MSE
+        mse = np.mean(data['Error_sq'])
+        
+        return model, vif_data, data, mse
 
     # Initial regression
-    model, vif_data, df_results = run_regression(df.dropna())
+    model, vif_data, df_results, mse = run_regression(df.dropna())
 
     # Display VIF
     vif_container = st.container()
@@ -375,7 +394,7 @@ def perform_multiple_linear_regression(df, y_var, x_vars):
 
     # Rerun regression if data is edited
     if not edited_df.equals(df_results):
-        model, vif_data, df_results = run_regression(edited_df)
+        model, vif_data, df_results, mse = run_regression(edited_df)
         
         # Update VIF display
         with vif_container:
@@ -385,6 +404,10 @@ def perform_multiple_linear_regression(df, y_var, x_vars):
 
     # Display the summary
     st.write(model.summary())
+
+    # Display MSE
+    st.subheader("Mean Squared Error (MSE)")
+    st.write(f"MSE: {mse}")
 
     # Residual plots
     fig, axes = plt.subplots(2, 2, figsize=(20, 20))
@@ -414,7 +437,8 @@ def perform_multiple_linear_regression(df, y_var, x_vars):
     
     st.pyplot(fig)
 
-    return df_results
+    return df_results, edited_df
+
 def perform_logistic_regression(df, y_var, x_vars):
     st.subheader(f"Logistic Regression: {y_var} vs {', '.join(x_vars)}")
     df = df.dropna()
@@ -683,12 +707,12 @@ def main():
                 if regression_type == 'Simple Linear':
                     x_var = st.sidebar.selectbox('Select Independent Variable (X)', df.columns)
                     y_var = st.sidebar.selectbox('Select Dependent Variable (Y)', [col for col in df.columns if col != x_var])
-                    perform_linear_regression(df, x_var, y_var)
+                    df = perform_linear_regression(df, x_var, y_var)
                 elif regression_type == 'Multiple Linear':
                     y_var = st.sidebar.selectbox('Select Dependent Variable (Y)', df.columns)
                     x_vars = st.sidebar.multiselect('Select Independent Variables (X)', [col for col in df.columns if col != y_var])
                     if len(x_vars) > 1:
-                        perform_multiple_linear_regression(df, y_var, x_vars)
+                        df = perform_multiple_linear_regression(df, y_var, x_vars)
                     else:
                         st.warning("Please select at least two independent variables for multiple linear regression.")
                 
