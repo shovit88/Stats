@@ -20,10 +20,15 @@ from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statsmodels.graphics.factorplots import interaction_plot
 from statsmodels.stats.anova import AnovaRM
 
-def convert_data_types(df):
+def display_data(df):
     # Display info about the dataframe
     st.write(f"Number of columns: {len(df.columns)}")
     st.write(f"Columns: {', '.join(df.columns)}")
+    st.write("Original DataFrame")
+    st.write(df)
+    return df
+
+def convert_data_types(df):
     
     # Convert all columns to numeric
     for col in df.columns:
@@ -41,6 +46,35 @@ def convert_data(df, columns_to_convert):
             df_numeric[column] = label_encoders[column].fit_transform(df_numeric[column])
     
     return df_numeric
+
+def interactive_csv_editor(dframe):
+    st.write("DataFrame")
+    st.write(dframe)
+    edited_df=dframe
+    #Sort Columns
+    st.subheader("Sort Columns")
+    sort_column = st.selectbox("Select column to sort by", dframe.columns)
+    sort_order = st.radio("Sort order", ("Ascending", "Descending"))
+    if st.button("Sort"):
+        edited_df = dframe.sort_values(by=sort_column, ascending=(sort_order == "Ascending"))
+        st.write("Sorted DataFrame")
+        st.write(edited_df)  
+    
+
+    # Editable DataFrame
+    st.subheader("Edit DataFrame")
+    edited_df = st.data_editor(edited_df, num_rows="dynamic")
+
+    # Add or Delete Columns
+    st.subheader("Delete Columns")
+    cols_to_delete = st.multiselect("Select columns to delete", edited_df.columns)
+    if st.button("Delete Columns"):
+        edited_df = edited_df.drop(columns=cols_to_delete)
+        st.write("Updated DataFrame")
+        st.write(edited_df)
+  
+    
+    return edited_df
 
 def download_csv(df):
     # Function to convert DataFrame to CSV
@@ -593,34 +627,6 @@ def perform_two_way_anova(df, value_col, factor1, factor2):
     ax.set_title(f"Interaction Plot: {factor1} and {factor2}")
     st.pyplot(fig)
 
-def interactive_csv_editor(dframe):
-    st.write("Original DataFrame")
-    st.write(dframe)
-    edited_df=dframe
-    #Sort Columns
-    st.subheader("Sort Columns")
-    sort_column = st.selectbox("Select column to sort by", dframe.columns)
-    sort_order = st.radio("Sort order", ("Ascending", "Descending"))
-    if st.button("Sort"):
-        edited_df = dframe.sort_values(by=sort_column, ascending=(sort_order == "Ascending"))
-        st.write("Sorted DataFrame")
-        st.write(edited_df)  
-    
-
-    # Editable DataFrame
-    st.subheader("Edit DataFrame")
-    edited_df = st.data_editor(edited_df, num_rows="dynamic")
-
-    # Add or Delete Columns
-    st.subheader("Delete Columns")
-    cols_to_delete = st.multiselect("Select columns to delete", edited_df.columns)
-    if st.button("Delete Columns"):
-        edited_df = edited_df.drop(columns=cols_to_delete)
-        st.write("Updated DataFrame")
-        st.write(edited_df)
-  
-    
-    return edited_df
 
 def perform_gage_rr(df, part_col, operator_col, measurement_col):
     st.subheader("Gage R&R Analysis")
@@ -676,9 +682,10 @@ def main():
     if uploaded_file is not None:
         try:
             dframe = pd.read_csv(uploaded_file)
-            dframe = convert_data_types(dframe)
+            dframe = display_data(dframe)
             columns_to_convert = st.multiselect("Select columns to convert to numerical",dframe.columns)
             dframe = convert_data(dframe, columns_to_convert)
+            dframe = convert_data_types(dframe)
             df = interactive_csv_editor(dframe)
 
 
